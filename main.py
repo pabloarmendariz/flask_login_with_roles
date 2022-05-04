@@ -24,7 +24,8 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(15), unique=True)
     password = db.Column(db.String(80))
-    is_admin = db.Column(db.Boolean())
+    # Relationships
+    roles = db.relationship('Role', secondary='user_roles')
 
     def __init__(self, username, password):
         self.username = username
@@ -32,6 +33,23 @@ class User(db.Model, UserMixin):
     
     def __repr__(self):
         return '<User {user} and password {passw}>'.format(user=self.username, passw=self.password)
+
+class Role(db.Model):
+    __tablename__ = 'roles'
+    id = db.Column(db.Integer(), primary_key=True)
+    name = db.Column(db.String(50), unique=True)
+
+    def __init__(self, name):
+        self.name = name
+
+    def __repr__(self):
+        return "<Role {role}>".format(role=self.name)
+
+class UserRoles(db.Model):
+    __tablename__ = 'user_roles'
+    id = db.Column(db.Integer(), primary_key=True)
+    user_id = db.Column(db.Integer(), db.ForeignKey('user.id', ondelete='CASCADE'))
+    role_id = db.Column(db.Integer(), db.ForeignKey('roles.id', ondelete='CASCADE'))
 
 class UserView(ModelView):
     def is_accessible(self):
@@ -46,9 +64,12 @@ class UserView(ModelView):
         """
         User.password = generate_password_hash(form.password.data, method="sha256")
 
+class RoleView(ModelView):
+    pass
+
 class HomeAdminView(AdminIndexView):
     def is_accessible(self):
-        return True
+        return current_user.has_role("Admin")
 
 class LoginForm(FlaskForm):
     username = StringField("username", validators=[InputRequired(), Length(min=4, max=20)])
@@ -57,6 +78,7 @@ class LoginForm(FlaskForm):
 
 admin = Admin(app, index_view=HomeAdminView())
 admin.add_view(UserView(User, db.session))
+admin.add_view(RoleView(Role, db.session))
 
 @app.route("/", methods=["GET", "POST"])
 @app.route("/login", methods=["GET", "POST"])
@@ -67,6 +89,7 @@ def login():
         user = User.query.filter_by(username=form.username.data).first()
         if user:
             if check_password_hash(user.password, form.password.data):
+                login_user(user)
                 return render_template("good.html", form=form)
     return render_template("index.html", form=form)
 
