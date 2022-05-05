@@ -1,4 +1,4 @@
-from flask import Flask, render_template, g
+from flask import Flask, render_template, redirect, url_for
 from flask_bootstrap import Bootstrap
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, BooleanField
@@ -18,7 +18,7 @@ login = LoginManager(app)
 
 @login.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    return User.query.get(user_id)
 
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
@@ -32,7 +32,7 @@ class User(db.Model, UserMixin):
         self.password = generate_password_hash(password, method="sha256")
     
     def __repr__(self):
-        return '<User {user} and password {passw}>'.format(user=self.username, passw=self.password)
+        return 'User {user}'.format(user=self.username, passw=self.password)
 
 class Role(db.Model):
     __tablename__ = 'roles'
@@ -43,7 +43,7 @@ class Role(db.Model):
         self.name = name
 
     def __repr__(self):
-        return "<Role {role}>".format(role=self.name)
+        return "{role}".format(role=self.name)
 
 class UserRoles(db.Model):
     __tablename__ = 'user_roles'
@@ -51,25 +51,46 @@ class UserRoles(db.Model):
     user_id = db.Column(db.Integer(), db.ForeignKey('user.id', ondelete='CASCADE'))
     role_id = db.Column(db.Integer(), db.ForeignKey('roles.id', ondelete='CASCADE'))
 
-class UserView(ModelView):
+class ViewsMixin:
+    """
+    Class to include in each Admin Views
+    """
     def is_accessible(self):
-        #user_id = current_user._
-        #print("This is the user_id", user_id)
-        return True
-        #return current_user.
-    
+        """
+        Gives access to the view if user has admin access.
+        """
+        if 'Admin' in [str(roles) for roles in current_user.roles]:
+            return True
+        else:
+            return False
+    def inaccessible_callback(self, name, **kwargs):
+        """
+        Redirect user without admin access to admin_unaccessible view.
+        """
+        return redirect(url_for("admin_unaccessible"))
+
+class UserView(ViewsMixin, ModelView):
+    """
+    Tab view for the user database.
+    Note : I need to modify the update_model method to keep password as hashed and not as a string.
+    """
     def on_model_change(self, form, User, is_created=False):
         """
-        While being in the 
+        Changes the submitted password as a hashed password.
         """
         User.password = generate_password_hash(form.password.data, method="sha256")
 
-class RoleView(ModelView):
+class RoleView(ViewsMixin, ModelView):
+    """
+    Tab view for the roles database
+    """
     pass
 
-class HomeAdminView(AdminIndexView):
-    def is_accessible(self):
-        return current_user.has_role("Admin")
+class HomeAdminView(ViewsMixin, AdminIndexView):
+    """
+    Tab view for the admin home page
+    """
+    pass
 
 class LoginForm(FlaskForm):
     username = StringField("username", validators=[InputRequired(), Length(min=4, max=20)])
@@ -90,6 +111,7 @@ def login():
         if user:
             if check_password_hash(user.password, form.password.data):
                 login_user(user)
+                print(current_user.roles)
                 return render_template("good.html", form=form)
     return render_template("index.html", form=form)
 
@@ -97,6 +119,10 @@ def login():
 def logout():
     logout_user()
     return "logged out"
+
+@app.route("/admin_unaccessible")
+def admin_unaccessible():
+    return "Sorry you don't have the right access to the administration page."
 
 if __name__ == "__main__":
     app.run(debug=True)
