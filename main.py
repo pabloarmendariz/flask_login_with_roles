@@ -1,4 +1,9 @@
-from flask import Flask, render_template, redirect, url_for
+"""
+So far the main problem is about modifying a user.
+The previous password being saved as hashed cannot be saved again.
+"""
+
+from flask import Flask, flash, render_template, redirect, url_for
 from flask_bootstrap import Bootstrap
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, BooleanField
@@ -59,10 +64,10 @@ class ViewsMixin:
         """
         Gives access to the view if user has admin access.
         """
-        if 'Admin' in [str(roles) for roles in current_user.roles]:
-            return True
-        else:
-            return False
+        if current_user.is_authenticated:
+            if 'Admin' in [str(roles) for roles in current_user.roles]:
+                return True
+                
     def inaccessible_callback(self, name, **kwargs):
         """
         Redirect user without admin access to admin_unaccessible view.
@@ -111,7 +116,6 @@ def login():
         if user:
             if check_password_hash(user.password, form.password.data):
                 login_user(user)
-                print(current_user.roles)
                 return render_template("good.html", form=form)
     return render_template("index.html", form=form)
 
@@ -119,6 +123,10 @@ def login():
 def logout():
     logout_user()
     return "logged out"
+
+@app.route("/myapp")
+def myapp():
+    return redirect("good.html")
 
 @app.route("/admin_unaccessible")
 def admin_unaccessible():
