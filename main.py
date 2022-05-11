@@ -34,7 +34,7 @@ class User(db.Model, UserMixin):
 
     def __init__(self, username, password):
         self.username = username
-        self.password = generate_password_hash(password, method="sha256")
+        self.password = generate_password_hash(password)
     
     def __repr__(self):
         return 'User {user}'.format(user=self.username, passw=self.password)
@@ -65,6 +65,10 @@ class ViewsMixin:
         Gives access to the view if user has admin access.
         """
         if current_user.is_authenticated:
+            """
+            curent_user.is_authenticated prevent a non authenticated to crash the app.
+            This will send the user to self.inaccessible_callback()
+            """
             if 'Admin' in [str(roles) for roles in current_user.roles]:
                 return True
                 
